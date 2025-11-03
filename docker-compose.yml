@@ -6,8 +6,8 @@ services:
   # Banco de dados PostgreSQL
   # ------------------------
   postgres:
-    image: postgres:13
-    container_name: crm-clinic-db
+    image: pgvector/pgvector:pg16
+    container_name: clinica-clinic-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -24,14 +24,14 @@ services:
       timeout: 5s
       retries: 5
     networks:
-      - crm-net
+      - clinica-net
 
   # ------------------------
   # Redis
   # ------------------------
   redis:
     image: redis:latest
-    container_name: crm-clinic-redis
+    container_name: clinica-clinic-redis
     command: redis-server --requirepass ${REDIS_AUTH}
     ports:
       - "6379:6379"
@@ -39,14 +39,14 @@ services:
       - redis_data:/data
     restart: unless-stopped
     networks:
-      - crm-net
+      - clinica-net
 
   # ------------------------
   # n8n
   # ------------------------
   n8n:
     image: n8nio/n8n
-    container_name: crm-clinic-n8n
+    container_name: clinica-clinic-n8n
     ports:
       - "5678:5678"
     volumes:
@@ -65,14 +65,14 @@ services:
       - redis
     restart: unless-stopped
     networks:
-      - crm-net
+      - clinica-net
 
   # ------------------------
   # Evolution API
   # ------------------------
   evolution-api:
     image: atendai/evolution-api:latest
-    container_name: crm-clinic-evolution-api
+    container_name: clinica-clinic-evolution-api
     ports:
       - "8080:8080"
     env_file:
@@ -84,7 +84,7 @@ services:
         condition: service_started
     restart: unless-stopped
     networks:
-      - crm-net
+      - clinica-net
 
   # ------------------------
   # Backend
@@ -93,7 +93,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: crm-clinic-backend
+    container_name: clinica-clinic-backend
     ports:
       - "3000:3000"
     environment:
@@ -105,7 +105,7 @@ services:
       postgres:
         condition: service_healthy
     networks:
-      - crm-net
+      - clinica-net
     restart: unless-stopped
 
   # ------------------------
@@ -115,20 +115,20 @@ services:
     build:
       context: .
       dockerfile: frontend.Dockerfile
-    container_name: crm-clinic-frontend
+    container_name: clinica-clinic-frontend
     ports:
       - "8081:80"
     depends_on:
       - backend
     networks:
-      - crm-net
+      - clinica-net
     restart: unless-stopped
 
 # ------------------------
 # Rede Docker
 # ------------------------
 networks:
-  crm-net:
+  clinica-net:
     driver: bridge
 
 # ------------------------

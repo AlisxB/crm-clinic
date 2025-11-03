@@ -1,12 +1,34 @@
-CREATE TABLE users (
+-- Tabela de Roles/Perfis
+CREATE TABLE IF NOT EXISTS roles (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    display_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Inserir roles padrão
+INSERT INTO roles (name, display_name, description) VALUES
+('admin', 'Administrador', 'Acesso total ao sistema, pode gerenciar usuários e configurações'),
+('dentist', 'Dentista', 'Acesso aos pacientes, agendamentos e dados clínicos'),
+('receptionist', 'Recepcionista', 'Acesso aos agendamentos, pacientes e finanças'),
+('viewer', 'Visualizador', 'Acesso apenas para visualização de dados')
+ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) UNIQUE NOT NULL,
     password VARCHAR(255) NOT NULL,
     name VARCHAR(255) NOT NULL,
-    role VARCHAR(50) NOT NULL
+    role_id INTEGER REFERENCES roles(id) ON DELETE SET NULL,
+    is_deleted BOOLEAN DEFAULT FALSE,
+    deleted_at TIMESTAMP WITH TIME ZONE,
+    deleted_by INTEGER
 );
 
-CREATE TABLE patients (
+CREATE TABLE IF NOT EXISTS patients (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
@@ -17,7 +39,7 @@ CREATE TABLE patients (
     cpf VARCHAR(14) UNIQUE NOT NULL
 );
 
-CREATE TABLE dentists (
+CREATE TABLE IF NOT EXISTS dentists (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     specialty VARCHAR(255),
@@ -29,7 +51,7 @@ CREATE TABLE dentists (
 );
 
 -- Tabela para armazenar os serviços oferecidos pela clínica
-CREATE TABLE services (
+CREATE TABLE IF NOT EXISTS services (
     id_servico SERIAL PRIMARY KEY,
     nome_servico VARCHAR(255) NOT NULL,
     descricao TEXT,
@@ -41,7 +63,7 @@ CREATE TABLE services (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE appointments (
+CREATE TABLE IF NOT EXISTS appointments (
     id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES patients(id),
     dentist_id INT REFERENCES dentists(id),
@@ -53,7 +75,7 @@ CREATE TABLE appointments (
     status VARCHAR(50) NOT NULL DEFAULT 'pending'
 );
 
-CREATE TABLE finances (
+CREATE TABLE IF NOT EXISTS finances (
     id SERIAL PRIMARY KEY,
     patient_id INT REFERENCES patients(id),
     description VARCHAR(255) NOT NULL,
@@ -62,7 +84,7 @@ CREATE TABLE finances (
     type VARCHAR(50) NOT NULL
 );
 
-CREATE TABLE dentist_schedules (
+CREATE TABLE IF NOT EXISTS dentist_schedules (
     id SERIAL PRIMARY KEY,
     dentist_id INT REFERENCES dentists(id) ON DELETE CASCADE,
     day_of_week VARCHAR(10) NOT NULL, -- Ex: 'Monday', 'Tuesday'
@@ -72,7 +94,7 @@ CREATE TABLE dentist_schedules (
     UNIQUE (dentist_id, day_of_week, start_time, end_time)
 );
 
-CREATE TABLE chatbot_sessions (
+CREATE TABLE IF NOT EXISTS chatbot_sessions (
     session_id VARCHAR(255) PRIMARY KEY, -- Chave primária, ID da execução do n8n
     user_identifier VARCHAR(255) NOT NULL, -- Identificador do usuário, como o telefone
     current_agent VARCHAR(50) NOT NULL DEFAULT 'Porteiro', -- Agente atual, começa com 'Porteiro'
@@ -85,10 +107,10 @@ CREATE TABLE chatbot_sessions (
 );
 
 -- Criar um índice no identificador do usuário para buscas rápidas
-CREATE INDEX idx_user_identifier ON chatbot_sessions (user_identifier);
+CREATE INDEX IF NOT EXISTS idx_user_identifier ON chatbot_sessions (user_identifier);
 
 -- Tabela de Auditoria/Histórico
-CREATE TABLE audit_logs (
+CREATE TABLE IF NOT EXISTS audit_logs (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id),
     user_name VARCHAR(255) NOT NULL,
@@ -103,10 +125,29 @@ CREATE TABLE audit_logs (
 );
 
 -- Índices para performance
-CREATE INDEX idx_audit_logs_user_id ON audit_logs (user_id);
-CREATE INDEX idx_audit_logs_action ON audit_logs (action);
-CREATE INDEX idx_audit_logs_entity_type ON audit_logs (entity_type);
-CREATE INDEX idx_audit_logs_created_at ON audit_logs (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs (user_id);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_entity_type ON audit_logs (entity_type);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs (created_at DESC);
+
+-- Tabela de Permissões por Perfil
+CREATE TABLE IF NOT EXISTS role_permissions (
+    id SERIAL PRIMARY KEY,
+    role_id INTEGER REFERENCES roles(id) ON DELETE CASCADE,
+    module VARCHAR(50) NOT NULL,
+    can_access BOOLEAN DEFAULT FALSE,
+    can_create BOOLEAN DEFAULT FALSE,
+    can_edit BOOLEAN DEFAULT FALSE,
+    can_delete BOOLEAN DEFAULT FALSE,
+    can_view_all BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(role_id, module)
+);
+
+-- Índices para performance
+CREATE INDEX IF NOT EXISTS idx_role_permissions_role_id ON role_permissions (role_id);
+CREATE INDEX IF NOT EXISTS idx_role_permissions_module ON role_permissions (module);
 
 -- Mock Data
 
@@ -134,130 +175,106 @@ INSERT INTO appointments (patient_id, dentist_id, start_time, end_time, type, no
 (2, 2, '2024-10-02 10:30:00', '2024-10-02 11:30:00', 'Cleaning', NULL, 'confirmed');
 
 -- Inserir usuário de teste para login
-INSERT INTO users (username, password, name, role) VALUES
-('admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrador', 'admin');
-
--- Tabela de Permissões por Perfil
-CREATE TABLE IF NOT EXISTS role_permissions (
-    id SERIAL PRIMARY KEY,
-    role VARCHAR(50) NOT NULL,
-    module VARCHAR(50) NOT NULL,
-    can_access BOOLEAN DEFAULT FALSE,
-    can_create BOOLEAN DEFAULT FALSE,
-    can_edit BOOLEAN DEFAULT FALSE,
-    can_delete BOOLEAN DEFAULT FALSE,
-    can_view_all BOOLEAN DEFAULT FALSE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(role, module)
-);
+INSERT INTO users (username, password, name, role_id) 
+SELECT 'admin', '$2b$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'Administrador', id FROM roles WHERE name = 'admin'
+ON CONFLICT (username) DO NOTHING;
 
 -- Inserir permissões padrão para todos os perfis
 -- Administrador - Acesso total a tudo
-INSERT INTO role_permissions (role, module, can_access, can_create, can_edit, can_delete, can_view_all) VALUES
-('admin', 'dashboard', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'patients', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'dentists', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'appointments', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'schedules', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'finances', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'users', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'history', TRUE, TRUE, TRUE, TRUE, TRUE),
-('admin', 'settings', TRUE, TRUE, TRUE, TRUE, TRUE);
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dashboard', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'patients', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dentists', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'appointments', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'schedules', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'finances', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'users', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'history', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'settings', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'admin' ON CONFLICT (role_id, module) DO NOTHING;
 
 -- Dentista - Acesso limitado
-INSERT INTO role_permissions (role, module, can_access, can_create, can_edit, can_delete, can_view_all) VALUES
-('dentist', 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE),
-('dentist', 'patients', TRUE, TRUE, TRUE, FALSE, FALSE),
-('dentist', 'dentists', TRUE, FALSE, TRUE, FALSE, FALSE),
-('dentist', 'appointments', TRUE, TRUE, TRUE, FALSE, FALSE),
-('dentist', 'schedules', TRUE, TRUE, TRUE, FALSE, FALSE),
-('dentist', 'finances', TRUE, FALSE, FALSE, FALSE, FALSE),
-('dentist', 'users', FALSE, FALSE, FALSE, FALSE, FALSE),
-('dentist', 'history', TRUE, FALSE, FALSE, FALSE, FALSE),
-('dentist', 'settings', FALSE, FALSE, FALSE, FALSE, FALSE);
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'patients', TRUE, TRUE, TRUE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dentists', TRUE, FALSE, TRUE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'appointments', TRUE, TRUE, TRUE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'schedules', TRUE, TRUE, TRUE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'finances', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'users', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'history', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'settings', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'dentist' ON CONFLICT (role_id, module) DO NOTHING;
 
 -- Recepcionista - Foco em agendamentos e pacientes
-INSERT INTO role_permissions (role, module, can_access, can_create, can_edit, can_delete, can_view_all) VALUES
-('receptionist', 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE),
-('receptionist', 'patients', TRUE, TRUE, TRUE, FALSE, TRUE),
-('receptionist', 'dentists', TRUE, FALSE, FALSE, FALSE, TRUE),
-('receptionist', 'appointments', TRUE, TRUE, TRUE, TRUE, TRUE),
-('receptionist', 'schedules', TRUE, FALSE, FALSE, FALSE, TRUE),
-('receptionist', 'finances', TRUE, TRUE, TRUE, FALSE, TRUE),
-('receptionist', 'users', FALSE, FALSE, FALSE, FALSE, FALSE),
-('receptionist', 'history', TRUE, FALSE, FALSE, FALSE, TRUE),
-('receptionist', 'settings', FALSE, FALSE, FALSE, FALSE, FALSE);
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'patients', TRUE, TRUE, TRUE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dentists', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'appointments', TRUE, TRUE, TRUE, TRUE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'schedules', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'finances', TRUE, TRUE, TRUE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'users', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'history', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'settings', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'receptionist' ON CONFLICT (role_id, module) DO NOTHING;
 
 -- Visualizador - Apenas leitura
-INSERT INTO role_permissions (role, module, can_access, can_create, can_edit, can_delete, can_view_all) VALUES
-('viewer', 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE),
-('viewer', 'patients', TRUE, FALSE, FALSE, FALSE, FALSE),
-('viewer', 'dentists', TRUE, FALSE, FALSE, FALSE, TRUE),
-('viewer', 'appointments', TRUE, FALSE, FALSE, FALSE, FALSE),
-('viewer', 'schedules', TRUE, FALSE, FALSE, FALSE, TRUE),
-('viewer', 'finances', TRUE, FALSE, FALSE, FALSE, FALSE),
-('viewer', 'users', FALSE, FALSE, FALSE, FALSE, FALSE),
-('viewer', 'history', TRUE, FALSE, FALSE, FALSE, FALSE),
-('viewer', 'settings', FALSE, FALSE, FALSE, FALSE, FALSE);
-
--- Índices para performance
-CREATE INDEX IF NOT EXISTS idx_role_permissions_role ON role_permissions (role);
-CREATE INDEX IF NOT EXISTS idx_role_permissions_module ON role_permissions (module);-
-- Tabela de Roles/Perfis
-CREATE TABLE IF NOT EXISTS roles (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(50) UNIQUE NOT NULL,
-    display_name VARCHAR(100) NOT NULL,
-    description TEXT,
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
-
--- Inserir roles padrão
-INSERT INTO roles (name, display_name, description) VALUES
-('admin', 'Administrador', 'Acesso total ao sistema, pode gerenciar usuários e configurações'),
-('dentist', 'Dentista', 'Acesso aos pacientes, agendamentos e dados clínicos'),
-('receptionist', 'Recepcionista', 'Acesso aos agendamentos, pacientes e finanças'),
-('viewer', 'Visualizador', 'Acesso apenas para visualização de dados')
-ON CONFLICT (name) DO NOTHING;
-
--- Adicionar foreign keys se não existirem
-DO $$ 
-BEGIN
-    -- Adicionar role_id na tabela role_permissions
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='role_permissions' AND column_name='role_id') THEN
-        ALTER TABLE role_permissions ADD COLUMN role_id INTEGER;
-        
-        -- Atualizar role_id baseado no nome do role
-        UPDATE role_permissions SET role_id = r.id 
-        FROM roles r 
-        WHERE role_permissions.role = r.name;
-        
-        -- Adicionar foreign key constraint
-        ALTER TABLE role_permissions 
-        ADD CONSTRAINT fk_role_permissions_role_id 
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE;
-    END IF;
-    
-    -- Adicionar role_id na tabela users
-    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='role_id') THEN
-        ALTER TABLE users ADD COLUMN role_id INTEGER;
-        
-        -- Atualizar role_id baseado no nome do role
-        UPDATE users SET role_id = r.id 
-        FROM roles r 
-        WHERE users.role = r.name;
-        
-        -- Adicionar foreign key constraint
-        ALTER TABLE users 
-        ADD CONSTRAINT fk_users_role_id 
-        FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE SET NULL;
-    END IF;
-END $$;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dashboard', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'patients', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'dentists', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'appointments', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'schedules', TRUE, FALSE, FALSE, FALSE, TRUE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'finances', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'users', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'history', TRUE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
+INSERT INTO role_permissions (role_id, module, can_access, can_create, can_edit, can_delete, can_view_all)
+SELECT r.id, 'settings', FALSE, FALSE, FALSE, FALSE, FALSE FROM roles r WHERE r.name = 'viewer' ON CONFLICT (role_id, module) DO NOTHING;
 
 -- Views para facilitar consultas
+CREATE OR REPLACE VIEW v_users_with_roles AS
+SELECT 
+    u.id,
+    u.username,
+    u.name,
+    r.name as role_name,
+    r.id as role_id,
+    r.display_name as role_display_name,
+    r.description as role_description,
+    r.is_active as role_is_active
+FROM users u
+LEFT JOIN roles r ON u.role_id = r.id
+ORDER BY u.name;
+
 CREATE OR REPLACE VIEW v_role_permissions AS
 SELECT 
     rp.id,
@@ -277,17 +294,3 @@ FROM role_permissions rp
 JOIN roles r ON rp.role_id = r.id
 WHERE r.is_active = TRUE
 ORDER BY r.name, rp.module;
-
-CREATE OR REPLACE VIEW v_users_with_roles AS
-SELECT 
-    u.id,
-    u.username,
-    u.name,
-    u.role as role_name,
-    r.id as role_id,
-    r.display_name as role_display_name,
-    r.description as role_description,
-    r.is_active as role_is_active
-FROM users u
-LEFT JOIN roles r ON u.role_id = r.id
-ORDER BY u.name;
