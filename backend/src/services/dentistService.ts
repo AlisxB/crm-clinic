@@ -142,7 +142,7 @@ export const getActiveDentistsToday = async () => {
 };
 
 export const getAvailableSlotsForWeek = async (dentistIds: string[]) => {
-  const slotsByDentist: { [key: string]: { [key: string]: any[] } } = {};
+  const slotsByDentist: { [key: string]: { dentist_name: string, slots: { [key: string]: any[] } } } = {};
 
   let targetDentistIds: string[] = dentistIds;
   if (targetDentistIds.length === 0) {
@@ -153,17 +153,22 @@ export const getAvailableSlotsForWeek = async (dentistIds: string[]) => {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
 
-  for (let i = 0; i < 7; i++) {
-    const date = new Date(today);
-    date.setUTCDate(today.getUTCDate() + i);
-    const dateString = date.toISOString().split('T')[0];
+  for (const dentistId of targetDentistIds) {
+    const dentist = await getDentistById(dentistId);
+    if (!dentist) continue;
 
-    for (const dentistId of targetDentistIds) {
-      if (!slotsByDentist[dentistId]) {
-        slotsByDentist[dentistId] = {};
-      }
+    slotsByDentist[dentistId] = {
+      dentist_name: dentist.name,
+      slots: {}
+    };
+
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setUTCDate(today.getUTCDate() + i);
+      const dateString = date.toISOString().split('T')[0];
+
       const availableSlots = await getAvailableSlots(dentistId, dateString);
-      slotsByDentist[dentistId][dateString] = availableSlots;
+      slotsByDentist[dentistId].slots[dateString] = availableSlots;
     }
   }
 
