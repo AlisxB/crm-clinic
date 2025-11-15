@@ -307,10 +307,10 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Stats Grid */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 animate-fade-in">
-          {currentUser?.role !== 'receptionist' && (
+          {currentUser?.role_name !== 'receptionist' && (
             <StatCard
               title="Total de Pacientes"
               value={totalPatients.toString()}
@@ -324,7 +324,7 @@ export default function Dashboard() {
             icon={CalendarIcon}
             trend={{ value: "", positive: true }} // Trend data not available from backend yet
           />
-          {currentUser?.role === 'admin' && (
+          {currentUser?.role_name === 'admin' && (
             <StatCard
               title="Receita Mensal"
               value={`R$${monthlyRevenue.toFixed(2)}`}
@@ -432,13 +432,13 @@ export default function Dashboard() {
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 Agendar Consulta
               </Button>
-              {currentUser?.role !== 'receptionist' && (
+              {currentUser?.role_name !== 'receptionist' && (
                 <Button variant="outline" className="w-full justify-start">
                   <DollarSign className="mr-2 h-4 w-4" />
                   Registrar Pagamento
                 </Button>
               )}
-              {currentUser?.role !== 'receptionist' && (
+              {currentUser?.role_name !== 'receptionist' && (
                 <Button variant="outline" className="w-full justify-start">
                   <Activity className="mr-2 h-4 w-4" />
                   Ver Relatórios

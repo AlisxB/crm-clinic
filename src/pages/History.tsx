@@ -188,7 +188,7 @@ export default function History() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Estatísticas Resumidas */}
         <div className="grid gap-4 md:grid-cols-4 mb-6">
           <Card>

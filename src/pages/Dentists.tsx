@@ -195,8 +195,8 @@ export default function Dentists() {
         </div>
       </div>
 
-      <div className="p-8">
-        <div className="grid gap-6 md:grid-cols-2">
+      <div className="p-4 md:p-8">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
           {localDentists.map((dentist) => (
             <Card key={dentist.id} className="transition-all hover:shadow-lg animate-fade-in">
               <CardContent className="p-6">

@@ -148,7 +148,7 @@ export default function UserManagement() {
     }
   };
 
-  if (currentUser?.role !== "admin") {
+  if (currentUser?.role_name !== "admin") {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card>
@@ -162,8 +162,8 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
         <h1 className="text-3xl font-bold text-foreground">Gerenciamento de Usuários</h1>
         <p className="text-muted-foreground">Gerencie usuários e atribua funções</p>
       </div>
@@ -239,8 +239,9 @@ export default function UserManagement() {
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Nome de Usuário</TableHead>
@@ -283,7 +284,8 @@ export default function UserManagement() {
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>
