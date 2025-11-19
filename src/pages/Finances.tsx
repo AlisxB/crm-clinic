@@ -1,6 +1,8 @@
 import { DollarSign, TrendingUp, TrendingDown, CreditCard } from "lucide-react";
 import StatCard from "@/components/StatCard";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from "@/components/ui/chart";
 
 export default function Finances() {
   const recentTransactions = [
@@ -10,6 +12,22 @@ export default function Finances() {
     { id: 4, patient: "James Wilson", amount: 320, type: "Payment", date: "2024-09-22", method: "Credit Card" },
     { id: 5, patient: "Lisa Anderson", amount: 200, type: "Payment", date: "2024-09-21", method: "Debit Card" },
   ];
+
+  const revenueData = [
+    { month: "Jan", revenue: 4000 },
+    { month: "Fev", revenue: 3000 },
+    { month: "Mar", revenue: 5000 },
+    { month: "Abr", revenue: 4500 },
+    { month: "Mai", revenue: 6000 },
+    { month: "Jun", revenue: 5500 },
+  ];
+
+  const chartConfig = {
+    revenue: {
+      label: "Receita",
+      color: "#2563eb",
+    },
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -23,7 +41,7 @@ export default function Finances() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Financial Stats */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 animate-fade-in">
           <StatCard
@@ -58,12 +76,18 @@ export default function Finances() {
               <CardTitle>Visão Geral da Receita</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex h-64 items-center justify-center rounded-lg border-2 border-dashed border-border">
-                <div className="text-center">
-                  <TrendingUp className="mx-auto h-12 w-12 text-muted-foreground" />
-                  <p className="mt-2 text-muted-foreground">O gráfico de receita estará disponível em breve</p>
-                </div>
-              </div>
+              <ChartContainer config={chartConfig} className="h-64 w-full">
+                <ResponsiveContainer>
+                  <BarChart data={revenueData}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis dataKey="month" tickLine={false} axisLine={false} />
+                    <YAxis tickLine={false} axisLine={false} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="revenue" fill="var(--color-revenue)" radius={4} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartContainer>
             </CardContent>
           </Card>
 

@@ -120,3 +120,24 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Toast styles */
+@layer components {
+  .toast {
+    z-index: 9999 !important;
+  }
+  
+  [data-radix-toast-viewport] {
+    z-index: 9999 !important;
+    position: fixed !important;
+    bottom: 1rem !important;
+    right: 1rem !important;
+  }
+  
+  [data-radix-toast-root] {
+    background: white !important;
+    border: 2px solid #000 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    z-index: 9999 !important;
+  }
+}

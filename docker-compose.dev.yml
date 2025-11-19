@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # Herda todos os serviços do docker-compose.yml principal
+  postgres:
+    extends:
+      file: docker-compose.yml
+      service: postgres
+
+  redis:
+    extends:
+      file: docker-compose.yml
+      service: redis
+
+  n8n:
+    extends:
+      file: docker-compose.yml
+      service: n8n
+
+  evolution-api:
+    extends:
+      file: docker-compose.yml
+      service: evolution-api
+
+  backend:
+    extends:
+      file: docker-compose.yml
+      service: backend
+
+  # Frontend em modo desenvolvimento com hot reload
+  frontend-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: crm-clinic-frontend-dev
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:3000
+    depends_on:
+      - backend
+    networks:
+      - crm-net
+    restart: unless-stopped
+
+networks:
+  crm-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  redis_data:
+  n8n_data:

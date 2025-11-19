@@ -12,11 +12,23 @@ export const getPatientById = async (id: string) => {
 
 export const createPatient = async (patient: any) => {
   const { name, email, phone, date_of_birth, address, medical_history, cpf } = patient;
-  const result = await pool.query(
-    'INSERT INTO patients (name, email, phone, date_of_birth, address, medical_history, cpf) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-    [name, email, phone, date_of_birth, address, medical_history, cpf]
-  );
-  return result.rows[0];
+  try {
+    const result = await pool.query(
+      'INSERT INTO patients (name, email, phone, date_of_birth, address, medical_history, cpf) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
+      [name, email, phone, date_of_birth, address, medical_history, cpf]
+    );
+    return result.rows[0];
+  } catch (error: any) {
+    if (error.code === '23505') { // Unique violation
+      if (error.constraint === 'patients_email_key') {
+        throw new Error('Este email já está cadastrado.');
+      }
+      if (error.constraint === 'patients_cpf_key') {
+        throw new Error('Este CPF já está cadastrado.');
+      }
+    }
+    throw error; // Re-throw other errors
+  }
 };
 
 export const updatePatient = async (id: string, patient: any) => {

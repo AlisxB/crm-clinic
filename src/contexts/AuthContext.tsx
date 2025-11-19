@@ -1,32 +1,50 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 
-export type UserRole = "admin" | "dentist" | "receptionist" | "viewer";
+// Removido UserRole - agora usamos role_name como string
 
 export interface User {
-  id: string;
+  id: number;
   username: string;
-  role: UserRole;
+  role_id: number;
+  role_name: string;
   name: string;
 }
 
 interface AuthContextType {
   currentUser: User | null;
+  isLoading: boolean;
   login: (username: string, password: string) => Promise<boolean>;
-  logout: () => void;
+  logout: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const SESSION_KEY = "dentalcare_session";
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true); // Start with loading state
 
   useEffect(() => {
-    const sessionUser = localStorage.getItem(SESSION_KEY);
-    if (sessionUser) {
-      setCurrentUser(JSON.parse(sessionUser));
-    }
+    const checkUserSession = async () => {
+      try {
+        const response = await fetch('http://localhost:3000/api/users/me', {
+          credentials: 'include', // Important for sending cookies
+        });
+
+        if (response.ok) {
+          const user = await response.json();
+          setCurrentUser(user);
+        } else {
+          setCurrentUser(null);
+        }
+      } catch (error) {
+        setCurrentUser(null);
+        console.error('Session check failed', error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    checkUserSession();
   }, []);
 
   const login = async (username: string, password: string): Promise<boolean> => {
@@ -37,12 +55,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ username, password }),
+        credentials: 'include', // Important for sending cookies
       });
 
       if (response.ok) {
         const user = await response.json();
         setCurrentUser(user);
-        localStorage.setItem(SESSION_KEY, JSON.stringify(user));
         return true;
       } else {
         return false;
@@ -53,15 +71,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const logout = () => {
-    setCurrentUser(null);
-    localStorage.removeItem(SESSION_KEY);
+  const logout = async () => {
+    try {
+      await fetch('http://localhost:3000/api/users/logout', {
+        method: 'POST',
+        credentials: 'include', // Important for sending cookies
+      });
+    } catch (error) {
+      console.error('Logout failed', error);
+    } finally {
+      setCurrentUser(null);
+    }
   };
 
   return (
     <AuthContext.Provider
       value={{
         currentUser,
+        isLoading,
         login,
         logout,
       }}

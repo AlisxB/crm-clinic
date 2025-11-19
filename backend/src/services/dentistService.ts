@@ -70,14 +70,11 @@ export const deleteDentistSchedule = async (scheduleId: string) => {
 };
 
 export const getAvailableSlots = async (dentistId: string, date: string) => {
-  // Lógica para calcular slots disponíveis
-  // 1. Obter os horários de trabalho do dentista para o dia da semana da data fornecida.
-  // 2. Obter todos os agendamentos existentes para o dentista na data fornecida.
-  // 3. Gerar todos os slots possíveis com base nos horários de trabalho e duração do slot.
-  // 4. Filtrar os slots que já estão ocupados por agendamentos.
-  // 5. Retornar os slots disponíveis.
-
-  const dayOfWeek = new Date(date).toLocaleString('en-us', { weekday: 'long' });
+  // Use UTC para evitar problemas de fuso horário
+  const dateObj = new Date(date + 'T00:00:00.000Z');
+  const dayIndex = dateObj.getUTCDay();
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const dayOfWeek = days[dayIndex];
 
   const schedulesResult = await pool.query(
     'SELECT * FROM dentist_schedules WHERE dentist_id = $1 AND day_of_week = $2',
@@ -86,39 +83,89 @@ export const getAvailableSlots = async (dentistId: string, date: string) => {
   const schedules = schedulesResult.rows;
 
   if (schedules.length === 0) {
-    return []; // Dentista não tem horário de trabalho para este dia
+    return [];
   }
 
   const appointmentsResult = await pool.query(
-    'SELECT appointment_date FROM appointments WHERE dentist_id = $1 AND DATE(appointment_date) = $2',
+    'SELECT start_time FROM appointments WHERE dentist_id = $1 AND start_time::date = $2',
     [dentistId, date]
   );
-  const bookedSlots = appointmentsResult.rows.map(row => new Date(row.appointment_date).getTime());
+  const bookedStartTimes = appointmentsResult.rows.map(row => new Date(row.start_time).getTime());
 
-  const availableSlots: Date[] = [];
+  const availableSlots: { start_time: Date, end_time: Date }[] = [];
+  const now = new Date();
 
   for (const schedule of schedules) {
-    const start = new Date(`${date}T${schedule.start_time}`);
-    const end = new Date(`${date}T${schedule.end_time}`);
-    const slotDuration = schedule.slot_duration_minutes * 60 * 1000; // Converter para milissegundos
+    // Use UTC para criar as datas de início e fim
+    const start = new Date(`${date}T${schedule.start_time}Z`);
+    const end = new Date(`${date}T${schedule.end_time}Z`);
+    const slotDuration = schedule.slot_duration_minutes * 60 * 1000;
 
-    let currentSlot = start.getTime();
+    let currentSlotTime = start.getTime();
 
-    while (currentSlot + slotDuration <= end.getTime()) {
-      const slotEndTime = currentSlot + slotDuration;
-      // Verificar se o slot está ocupado
-      const isBooked = bookedSlots.some(bookedTime => {
-        const bookedStart = bookedTime;
-        const bookedEnd = bookedTime + (schedule.slot_duration_minutes * 60 * 1000); // Assumindo que a duração do agendamento é a mesma do slot
-        return (currentSlot < bookedEnd && slotEndTime > bookedStart);
-      });
+    while (currentSlotTime + slotDuration <= end.getTime()) {
+      const slotStartTime = currentSlotTime;
+      const slotStartDate = new Date(slotStartTime);
+      
+      const isBooked = bookedStartTimes.includes(slotStartTime);
+      const isPast = slotStartDate < now;
 
-      if (!isBooked) {
-        availableSlots.push(new Date(currentSlot));
+      // Só adiciona slots que não estão reservados e não são no passado
+      if (!isBooked && !isPast) {
+        availableSlots.push({
+          start_time: new Date(slotStartTime),
+          end_time: new Date(slotStartTime + slotDuration),
+        });
       }
-      currentSlot += slotDuration;
+      currentSlotTime += slotDuration;
     }
   }
 
   return availableSlots;
+};
+
+export const getActiveDentistsToday = async () => {
+  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const today = new Date();
+  const dayOfWeek = days[today.getDay()];
+
+  const result = await pool.query(
+    `SELECT d.id, d.name, d.phone, ds.start_time, ds.end_time 
+     FROM dentists d
+     JOIN dentist_schedules ds ON d.id = ds.dentist_id
+     WHERE ds.day_of_week = $1
+     ORDER BY d.name, ds.start_time`,
+    [dayOfWeek]
+  );
+
+  return result.rows;
+};
+
+export const getAvailableSlotsForWeek = async (dentistIds: string[]) => {
+  const slotsByDentist: { [key: string]: { [key: string]: any[] } } = {};
+
+  let targetDentistIds: string[] = dentistIds;
+  if (targetDentistIds.length === 0) {
+    const allDentists = await getAllDentists();
+    targetDentistIds = allDentists.map(d => String(d.id));
+  }
+
+  const today = new Date();
+  today.setUTCHours(0, 0, 0, 0);
+
+  for (let i = 0; i < 7; i++) {
+    const date = new Date(today);
+    date.setUTCDate(today.getUTCDate() + i);
+    const dateString = date.toISOString().split('T')[0];
+
+    for (const dentistId of targetDentistIds) {
+      if (!slotsByDentist[dentistId]) {
+        slotsByDentist[dentistId] = {};
+      }
+      const availableSlots = await getAvailableSlots(dentistId, dateString);
+      slotsByDentist[dentistId][dateString] = availableSlots;
+    }
+  }
+
+  return slotsByDentist;
 };

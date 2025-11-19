@@ -36,8 +36,8 @@ export default function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-primary p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-4">
-          <div className="flex items-center justify-center gap-2">
-            <Activity className="h-10 w-10 text-primary" />
+          <div className="flex flex-col items-center justify-center gap-4">
+            <img src="/logo.svg" alt="DentalCare Logo" className="h-16 w-16" />
             <div className="text-center">
               <CardTitle className="text-2xl">DentalCare</CardTitle>
               <CardDescription>Sistema de Gestão de Clínicas</CardDescription>

@@ -4,9 +4,12 @@ import { Toast, ToastClose, ToastDescription, ToastProvider, ToastTitle, ToastVi
 export function Toaster() {
   const { toasts } = useToast();
 
+  console.log('Toaster renderizado com toasts:', toasts);
+
   return (
     <ToastProvider>
       {toasts.map(function ({ id, title, description, action, ...props }) {
+        console.log('Renderizando toast:', { id, title, description });
         return (
           <Toast key={id} {...props}>
             <div className="grid gap-1">

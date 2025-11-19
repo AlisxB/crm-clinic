@@ -10,9 +10,22 @@ export const getAllDentists = async (req: Request, res: Response) => {
   }
 };
 
+export const getActiveDentistsToday = async (req: Request, res: Response) => {
+  try {
+    const dentists = await dentistService.getActiveDentistsToday();
+    res.json(dentists);
+  } catch (error) {
+    res.status(500).json({ message: 'Error fetching active dentists for today', error });
+  }
+};
+
 export const getDentistById = async (req: Request, res: Response) => {
   try {
-    const dentist = await dentistService.getDentistById(req.params.id);
+    const id = req.params.id;
+    if (!/^\d+$/.test(id)) {
+        return res.status(400).json({ message: 'Invalid dentist ID. Must be an integer.' });
+    }
+    const dentist = await dentistService.getDentistById(id);
     if (dentist) {
       res.json(dentist);
     } else {
@@ -119,6 +132,26 @@ export const getAvailableSlots = async (req: Request, res: Response) => {
     const availableSlots = await dentistService.getAvailableSlots(id, date);
     res.json(availableSlots);
   } catch (error) {
-    res.status(500).json({ message: 'Error fetching available slots', error });
+    console.error("!!!!!!!!!! ERRO AO BUSCAR SLOTS !!!!!!!!!!");
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching available slots', error: (error as Error).message });
+  }
+};
+
+export const getAvailableSlotsForWeek = async (req: Request, res: Response) => {
+  try {
+    const { dentistIds } = req.query;
+    let ids: string[] = [];
+
+    if (dentistIds && typeof dentistIds === 'string') {
+      ids = dentistIds.split(',').filter(id => id.trim() !== '');
+    }
+
+    const availableSlots = await dentistService.getAvailableSlotsForWeek(ids);
+    res.json(availableSlots);
+  } catch (error) {
+    console.error("!!!!!!!!!! ERRO AO BUSCAR SLOTS DA SEMANA !!!!!!!!!!");
+    console.error(error);
+    res.status(500).json({ message: 'Error fetching available slots for the week', error: (error as Error).message });
   }
 };

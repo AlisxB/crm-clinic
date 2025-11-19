@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { Mail, Phone, Award, Calendar as CalendarIcon } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useDentists } from "@/contexts/DentistContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -25,7 +27,8 @@ interface Appointment {
   id: number;
   patient_id: number;
   dentist_id: number;
-  appointment_date: string;
+  start_time: string;
+  end_time: string;
   type: string;
   notes: string;
   status: string;
@@ -37,19 +40,69 @@ interface Patient {
 }
 
 export default function Dentists() {
-  const [dentists, setDentists] = useState<Dentist[]>([]);
+  const { dentists, refreshDentists, isLoading } = useDentists();
+  const [localDentists, setLocalDentists] = useState<Dentist[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const { toast } = useToast();
+  const location = useLocation();
+
+  console.log('🏥 Página Dentistas renderizada, dentistas do Context:', dentists.length);
+
+  // Buscar dentistas apenas uma vez na montagem
+  useEffect(() => {
+    console.log('🔄 Carregando dentistas inicialmente');
+    fetchDentistsLocal();
+    fetchAppointments();
+    fetchPatients();
+  }, []);
+
+  // Função local para buscar dentistas
+  const fetchDentistsLocal = async () => {
+    try {
+      console.log('🔄 Buscando dentistas da API');
+      const response = await fetch('http://localhost:3000/api/dentists');
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📋 Dentistas recebidos:', data.length);
+        setLocalDentists(data);
+      } else {
+        toast({ title: "Erro", description: "Falha ao buscar dentistas", variant: "destructive" });
+      }
+    } catch (error) {
+      console.error('❌ Erro ao buscar dentistas:', error);
+      toast({ title: "Erro", description: "Falha ao buscar dentistas", variant: "destructive" });
+    }
+  };
   const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
   const [selectedDentistForSchedule, setSelectedDentistForSchedule] = useState<Dentist | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]); // Novo estado para slots disponíveis
 
+  // Escutar eventos de atualização de dentistas apenas
   useEffect(() => {
-    fetchDentists();
-    fetchAppointments();
-    fetchPatients();
+    const handleDentistsUpdate = () => {
+      console.log('🎯 Atualizando dentistas por evento');
+      fetchDentistsLocal();
+    };
+
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'dentists_updated') {
+        console.log('📝 Detectada mudança no localStorage');
+        handleDentistsUpdate();
+      }
+    };
+
+    // Escutar evento customizado
+    window.addEventListener('dentists_updated', handleDentistsUpdate);
+    
+    // Escutar mudanças no localStorage
+    window.addEventListener('storage', handleStorageChange);
+
+    return () => {
+      window.removeEventListener('dentists_updated', handleDentistsUpdate);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -58,19 +111,7 @@ export default function Dentists() {
     }
   }, [selectedDentistForSchedule, selectedDate]);
 
-  const fetchDentists = async () => {
-    try {
-      const response = await fetch('http://localhost:3000/api/dentists');
-      if (response.ok) {
-        const data = await response.json();
-        setDentists(data);
-      } else {
-        toast({ title: "Erro", description: "Falha ao buscar dentistas", variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Erro", description: "Falha ao buscar dentistas", variant: "destructive" });
-    }
-  };
+
 
   const fetchAppointments = async () => {
     try {
@@ -136,11 +177,11 @@ export default function Dentists() {
   };
 
   const filteredAppointments = appointments.filter(appointment => {
-    const appointmentDate = new Date(appointment.appointment_date);
+    const appointmentDate = new Date(appointment.start_time);
     const isSameDay = selectedDate ? appointmentDate.toDateString() === selectedDate.toDateString() : true;
     const isSelectedDentist = selectedDentistForSchedule ? appointment.dentist_id === selectedDentistForSchedule.id : true;
     return isSameDay && isSelectedDentist;
-  }).sort((a, b) => new Date(a.appointment_date).getTime() - new Date(b.appointment_date).getTime());
+  }).sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime());
 
   return (
     <div className="min-h-screen bg-background">
@@ -154,9 +195,9 @@ export default function Dentists() {
         </div>
       </div>
 
-      <div className="p-8">
-        <div className="grid gap-6 md:grid-cols-2">
-          {dentists.map((dentist) => (
+      <div className="p-4 md:p-8">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
+          {localDentists.map((dentist) => (
             <Card key={dentist.id} className="transition-all hover:shadow-lg animate-fade-in">
               <CardContent className="p-6">
                 <div className="flex items-start gap-4">
@@ -253,7 +294,7 @@ export default function Dentists() {
                           <p className="font-medium">{getPatientName(appointment.patient_id)}</p>
                           <p className="text-sm text-muted-foreground">{appointment.type}</p>
                         </div>
-                        <p className="text-sm font-medium">{new Date(appointment.appointment_date).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}</p>
+                        <p className="text-sm font-medium">{new Date(appointment.start_time).toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' })}</p>
                       </div>
                     ))
                   ) : (

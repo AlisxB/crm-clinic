@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { useAuth, User, UserRole } from "@/contexts/AuthContext";
+import { useAuth, User } from "@/contexts/AuthContext";
+import { useDentists } from "@/contexts/DentistContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -13,15 +15,17 @@ import { useToast } from "@/hooks/use-toast";
 
 export default function UserManagement() {
   const { currentUser } = useAuth();
+  const { refreshDentists } = useDentists();
   const { toast } = useToast();
   const [users, setUsers] = useState<User[]>([]);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
+  const [isConfirmAddDialogOpen, setIsConfirmAddDialogOpen] = useState(false);
 
   const [newUser, setNewUser] = useState({
     username: "",
     password: "",
     name: "",
-    role: "viewer" as UserRole,
+    role: "viewer",
   });
 
   useEffect(() => {
@@ -30,7 +34,9 @@ export default function UserManagement() {
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/users');
+      const response = await fetch('http://localhost:3000/api/users', {
+        credentials: 'include',
+      });
       if (response.ok) {
         const data = await response.json();
         setUsers(data);
@@ -48,9 +54,11 @@ export default function UserManagement() {
     }
 
     try {
+      console.log('Enviando dados do usuário:', newUser);
       const response = await fetch('http://localhost:3000/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify(newUser),
       });
 
@@ -58,6 +66,7 @@ export default function UserManagement() {
         toast({ title: "Sucesso", description: "Usuário criado com sucesso" });
         setNewUser({ username: "", password: "", name: "", role: "viewer" });
         setIsAddDialogOpen(false);
+        setIsConfirmAddDialogOpen(false);
         fetchUsers();
       } else {
         const errorData = await response.json();
@@ -74,14 +83,54 @@ export default function UserManagement() {
       return;
     }
 
+    // Verificar se o usuário é um dentista antes de excluir
+    const userToDelete = users.find(user => user.id === id);
+    const isDentist = userToDelete?.role === 'dentist';
+
     try {
       const response = await fetch(`http://localhost:3000/api/users/${id}`, {
         method: 'DELETE',
+        credentials: 'include',
       });
 
       if (response.ok) {
         toast({ title: "Sucesso", description: "Usuário excluído com sucesso" });
         fetchUsers();
+        
+        // Se era um dentista, sincronizar tabelas e atualizar
+        if (isDentist) {
+          console.log('🔥 Usuário dentista excluído, sincronizando tabelas');
+          
+          // Chamar endpoint de sincronização
+          try {
+            const syncResponse = await fetch('http://localhost:3000/api/users/sync-dentists', {
+              method: 'POST',
+            });
+            
+            if (syncResponse.ok) {
+              const syncData = await syncResponse.json();
+              console.log('✅ Sincronização concluída:', syncData);
+            }
+          } catch (syncError) {
+            console.error('❌ Erro na sincronização:', syncError);
+          }
+          
+          // Usar localStorage para comunicar mudança
+          localStorage.setItem('dentists_updated', Date.now().toString());
+          console.log('📝 LocalStorage atualizado');
+          
+          // Disparar evento customizado
+          window.dispatchEvent(new CustomEvent('dentists_updated'));
+          console.log('📡 Evento customizado disparado');
+          
+          // Tentar usar o Context se disponível
+          try {
+            refreshDentists();
+            console.log('🔄 Context refreshDentists chamado');
+          } catch (error) {
+            console.log('❌ Context não disponível, usando eventos');
+          }
+        }
       } else {
         toast({ title: "Erro", description: "Falha ao excluir usuário", variant: "destructive" });
       }
@@ -90,7 +139,7 @@ export default function UserManagement() {
     }
   };
 
-  const getRoleBadgeColor = (role: UserRole) => {
+  const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case "admin": return "bg-destructive text-destructive-foreground";
       case "dentist": return "bg-primary text-primary-foreground";
@@ -99,7 +148,7 @@ export default function UserManagement() {
     }
   };
 
-  if (currentUser?.role !== "admin") {
+  if (currentUser?.role_name !== "admin") {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <Card>
@@ -113,8 +162,8 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
+    <div className="p-4 md:p-8">
+      <div className="mb-6 md:mb-8">
         <h1 className="text-3xl font-bold text-foreground">Gerenciamento de Usuários</h1>
         <p className="text-muted-foreground">Gerencie usuários e atribua funções</p>
       </div>
@@ -153,7 +202,7 @@ export default function UserManagement() {
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="role">Função</Label>
-                    <Select value={newUser.role} onValueChange={(value: UserRole) => setNewUser({ ...newUser, role: value })}>
+                    <Select value={newUser.role} onValueChange={(value: string) => setNewUser({ ...newUser, role: value })}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="admin">Administrador</SelectItem>
@@ -163,15 +212,36 @@ export default function UserManagement() {
                       </SelectContent>
                     </Select>
                   </div>
-                  <Button type="submit" className="w-full">Criar Usuário</Button>
+                  <Button type="button" className="w-full" onClick={() => setIsConfirmAddDialogOpen(true)}>Criar Usuário</Button>
                 </form>
               </DialogContent>
             </Dialog>
+            <AlertDialog open={isConfirmAddDialogOpen} onOpenChange={setIsConfirmAddDialogOpen}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Confirmar Criação de Usuário</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Você está prestes a criar o seguinte usuário:
+                    <br />
+                    <b>Nome:</b> {newUser.name}<br />
+                    <b>Nome de Usuário:</b> {newUser.username}<br />
+                    <b>Função:</b> {newUser.role}
+                    <br />
+                    Deseja continuar?
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleAddUser}>Confirmar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead>
                 <TableHead>Nome de Usuário</TableHead>
@@ -184,20 +254,38 @@ export default function UserManagement() {
                 <TableRow key={user.id}>
                   <TableCell className="font-medium">{user.name}</TableCell>
                   <TableCell>{user.username}</TableCell>
-                  <TableCell><Badge className={getRoleBadgeColor(user.role)}>{user.role}</Badge></TableCell>
+                  <TableCell><Badge className={getRoleBadgeColor(user.role_name)}>{user.role_name}</Badge></TableCell>
                   <TableCell>
                     <div className="flex gap-2">
                       {user.id !== "1" && (
-                        <Button variant="destructive" size="sm" onClick={() => handleDeleteUser(user.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button variant="destructive" size="sm">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                              <AlertDialogDescription>
+                                Esta ação não pode ser desfeita. Isso excluirá permanentemente o usuário 
+                                <b>{user.name}</b> e removerá seus dados de nossos servidores.
+                              </AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDeleteUser(user.id)}>Continuar</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
                       )}
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
             </TableBody>
-          </Table>
+            </Table>
+          </div>
         </CardContent>
       </Card>
     </div>

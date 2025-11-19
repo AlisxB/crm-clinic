@@ -1,31 +1,49 @@
 version: '3.8'
+
 services:
+
+  # ------------------------
+  # Banco de dados PostgreSQL
+  # ------------------------
   postgres:
     image: postgres:13
     container_name: crm-clinic-db
     environment:
-      POSTGRES_DB: crm_clinic
-      POSTGRES_USER: admin
-      POSTGRES_PASSWORD: password
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5434:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./backend/src/database/init.sql:/docker-entrypoint-initdb.d/init.sql
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - crm-net
 
+  # ------------------------
+  # Redis
+  # ------------------------
   redis:
     image: redis:latest
     container_name: crm-clinic-redis
-    command: redis-server --requirepass admin123
-    environment:
-      REDIS_PASSWORD: admin123
+    command: redis-server --requirepass ${REDIS_AUTH}
     ports:
       - "6379:6379"
     volumes:
       - redis_data:/data
     restart: unless-stopped
+    networks:
+      - crm-net
 
+  # ------------------------
+  # n8n
+  # ------------------------
   n8n:
     image: n8nio/n8n
     container_name: crm-clinic-n8n
@@ -34,35 +52,88 @@ services:
     volumes:
       - n8n_data:/home/node/.n8n
     environment:
-      N8N_HOST: localhost
+      N8N_HOST: n8n
       N8N_PROTOCOL: http
-      WEBHOOK_URL: http://localhost:5678/
+      WEBHOOK_URL: http://n8n:5678/
       N8N_BASIC_AUTH_ACTIVE: "true"
       N8N_BASIC_AUTH_USER: user
       N8N_BASIC_AUTH_PASSWORD: password
       QUEUE_BULL_REDIS_HOST: redis
       QUEUE_BULL_REDIS_PORT: 6379
-      QUEUE_BULL_REDIS_PASSWORD: admin123
+      QUEUE_BULL_REDIS_PASSWORD: ${REDIS_PASSWORD}
     depends_on:
       - redis
     restart: unless-stopped
+    networks:
+      - crm-net
 
+  # ------------------------
+  # Evolution API
+  # ------------------------
   evolution-api:
-    image: atendai/evolution-api
+    image: atendai/evolution-api:latest
     container_name: crm-clinic-evolution-api
     ports:
       - "8080:8080"
-    environment:
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
-      REDIS_PASSWORD: admin123
-      # DATABASE_URL: postgresql://admin:password@postgres:5432/crm_clinic # Descomente e ajuste se a Evolution API precisar de acesso ao PostgreSQL
-      NODE_ENV: production
+    env_file:
+      - .env
     depends_on:
-      - redis
-      # - postgres # Descomente se a Evolution API precisar de acesso ao PostgreSQL
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - crm-net
+
+  # ------------------------
+  # Backend
+  # ------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: crm-clinic-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - crm-net
     restart: unless-stopped
 
+  # ------------------------
+  # Frontend
+  # ------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend.Dockerfile
+    container_name: crm-clinic-frontend
+    ports:
+      - "8081:80"
+    depends_on:
+      - backend
+    networks:
+      - crm-net
+    restart: unless-stopped
+
+# ------------------------
+# Rede Docker
+# ------------------------
+networks:
+  crm-net:
+    driver: bridge
+
+# ------------------------
+# Volumes Docker
+# ------------------------
 volumes:
   postgres_data:
   redis_data:

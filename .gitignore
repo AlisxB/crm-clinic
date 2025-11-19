@@ -22,4 +22,10 @@ backend/dist
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
+*.sw?backend/bun.lock
+
+# Vite cache
+.vite/
+
+# Bun lockfile
+backend/bun.lock
