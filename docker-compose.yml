@@ -68,20 +68,21 @@ services:
       - clinica-net
 
   # ------------------------
-  # Evolution API
+  # WAHA - WhatsApp API
   # ------------------------
-  evolution-api:
-    image: atendai/evolution-api:latest
-    container_name: clinica-clinic-evolution-api
+  waha-api:
+    image: devlikeapro/waha:latest
+    container_name: clinica-clinic-waha-api
     ports:
-      - "8080:8080"
+      - "3001:3000"
     env_file:
       - .env
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_started
+    environment:
+      - WH_BASIC_AUTH_USERNAME=admin
+      - WH_BASIC_AUTH_PASSWORD=admin
+      - WH_HOST=http://localhost:3000
+    volumes:
+      - waha_sessions:/app/sessions
     restart: unless-stopped
     networks:
       - clinica-net
@@ -138,3 +139,4 @@ volumes:
   postgres_data:
   redis_data:
   n8n_data:
+  waha_sessions:

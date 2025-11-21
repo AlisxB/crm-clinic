@@ -19,11 +19,17 @@ export const login = async (credentials: any) => {
   
   console.log(`🔐 Tentando login para usuário: ${username}`);
   
-  // Usar estrutura antiga (sem roles table) diretamente
+  // Corrigido: Fazer JOIN com a tabela 'roles' para obter o 'role_name'
   const result = await pool.query(`
-    SELECT id, username, password, name, role as role_name 
-    FROM users 
-    WHERE username = $1
+    SELECT 
+      u.id, 
+      u.username, 
+      u.password, 
+      u.name, 
+      r.name as role_name 
+    FROM users u
+    LEFT JOIN roles r ON u.role_id = r.id
+    WHERE u.username = $1 AND u.is_deleted = false
   `, [username]);
   
   console.log(`📊 Usuários encontrados: ${result.rows.length}`);
