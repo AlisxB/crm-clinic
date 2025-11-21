@@ -436,7 +436,7 @@ export default function Schedules() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {isLoading ? (
           <Card>
             <CardContent className="text-center py-8">

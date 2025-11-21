@@ -41,7 +41,7 @@ export default function Finances() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Financial Stats */}
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 animate-fade-in">
           <StatCard

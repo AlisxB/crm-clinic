@@ -81,7 +81,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-border">
           <div className="mb-3 px-3">
             <p className="text-sm font-medium text-foreground">{currentUser?.name}</p>
-            <p className="text-xs text-muted-foreground capitalize">{currentUser?.role}</p>
+            <p className="text-xs text-muted-foreground capitalize">{currentUser?.role_name}</p>
           </div>
           <Button
             variant="outline"

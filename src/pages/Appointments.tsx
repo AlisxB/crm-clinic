@@ -265,7 +265,7 @@ export default function Appointments() {
         </div>
       </div>
 
-      <div className="p-8">
+      <div className="p-4 md:p-8">
         {/* Calendar View */}
         <Card className="mb-6 animate-fade-in">
           <CardHeader>

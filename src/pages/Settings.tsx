@@ -8,6 +8,7 @@ import { usePermissions } from "../contexts/PermissionContext";
 interface Permission {
   id: number;
   role: string;
+  role_name: string;
   module: string;
   can_access: boolean;
   can_create: boolean;
@@ -84,7 +85,7 @@ export default function Settings() {
         const permissionsData = await permissionsResponse.json();
         setPermissions(permissionsData);
         
-        const uniqueRoles = [...new Set(permissionsData.map((p: Permission) => p.role))] as string[];
+        const uniqueRoles = [...new Set(permissionsData.map((p: Permission) => p.role_name))] as string[];
         setRoles(uniqueRoles);
         
         if (uniqueRoles.length > 0 && !selectedRole) {
@@ -99,7 +100,7 @@ export default function Settings() {
   };
 
   const loadRolePermissions = (role: string) => {
-    const rolePerms = permissions.filter(p => p.role === role);
+    const rolePerms = permissions.filter(p => p.role_name === role);
     setRolePermissions(rolePerms);
   };
 
@@ -112,7 +113,7 @@ export default function Settings() {
     try {
       setSaving(true);
       
-      const currentPermission = rolePermissions.find(p => p.role === role && p.module === module);
+      const currentPermission = rolePermissions.find(p => p.role_name === role && p.module === module);
       if (!currentPermission) return;
 
       const updatedData = {
@@ -132,7 +133,7 @@ export default function Settings() {
       if (response.ok) {
         setRolePermissions(prev => 
           prev.map(p => 
-            p.role === role && p.module === module 
+            p.role_name === role && p.module === module 
               ? { ...p, [field]: value }
               : p
           )
@@ -140,7 +141,7 @@ export default function Settings() {
         
         setPermissions(prev => 
           prev.map(p => 
-            p.role === role && p.module === module 
+            p.role_name === role && p.module === module 
               ? { ...p, [field]: value }
               : p
           )
@@ -195,7 +196,7 @@ export default function Settings() {
   };
 
   // Verificar se o usuário é admin para permissões
-  if (activeSection === 'permissions' && currentUser?.role !== 'admin') {
+  if (activeSection === 'permissions' && currentUser?.role_name !== 'admin') {
     return (
       <div className="min-h-screen bg-background">
         <div className="border-b border-border bg-gradient-primary px-8 py-6">
@@ -206,7 +207,7 @@ export default function Settings() {
             </div>
           </div>
         </div>
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           <div className="flex items-center justify-center h-64">
             <div className="text-center">
               <Shield className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
@@ -247,7 +248,7 @@ export default function Settings() {
           </div>
         </div>
 
-        <div className="p-8">
+        <div className="p-4 md:p-8">
           {loading ? (
             <div className="flex items-center justify-center h-64">
               <RefreshCw className="h-8 w-8 animate-spin text-primary" />
@@ -400,8 +401,8 @@ export default function Settings() {
         </div>
       </div>
 
-      <div className="p-8">
-        <div className="grid gap-6 md:grid-cols-2">
+      <div className="p-4 md:p-8">
+        <div className="grid gap-4 md:gap-6 md:grid-cols-2">
           {settingsSections.map((section) => (
             <Card key={section.title} className="transition-all hover:shadow-lg animate-fade-in">
               <CardHeader>
